@@ -17,7 +17,30 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 class RecipeRequest(BaseModel):
     ingredients: list[str] = Field(min_length=1, max_length=50)
 
-def _generate(prompt_parts: list[Any]) -> dict:
+class Recipe(BaseModel):
+    name: str
+    minutes: int = Field(ge=1, le=360)
+    ingredients: list[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
+    steps: list[str] = Field(min_length=1)
+
+class SmartCookResponse(BaseModel):
+    ingredients: list[str] = Field(default_factory=list)
+    recipes: list[Recipe] = Field(min_length=1, max_length=5)
+
+def _normalize_ai_json(raw: str) -> SmartCookResponse:
+    parsed: Any = json.loads(raw)
+    # Gemini occasionally returns a JSON-encoded string despite JSON mode.
+    while isinstance(parsed, str):
+        parsed = json.loads(parsed)
+    if not isinstance(parsed, dict):
+        raise ValueError("AI response root is not an object")
+    for recipe in parsed.get("recipes", []):
+        if isinstance(recipe, dict) and isinstance(recipe.get("steps"), str):
+            recipe["steps"] = [step.strip() for step in recipe["steps"].split("\n") if step.strip()]
+    return SmartCookResponse.model_validate(parsed)
+
+def _generate(prompt_parts: list[Any]) -> SmartCookResponse:
     key = os.getenv("GEMINI_API_KEY")
     if not key:
         raise HTTPException(503, "GEMINI_API_KEY is not configured in backend/.env")
@@ -28,10 +51,7 @@ def _generate(prompt_parts: list[Any]) -> dict:
             contents=prompt_parts,
             config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
-        parsed = json.loads(response.text or "{}")
-        if not isinstance(parsed.get("ingredients"), list) or not isinstance(parsed.get("recipes"), list):
-            raise ValueError("AI response did not match the expected schema")
-        return parsed
+        return _normalize_ai_json(response.text or "{}")
     except HTTPException:
         raise
     except Exception as exc:
@@ -62,8 +82,8 @@ async def analyze(
     parts.append("""Ты помощник по готовке. Определи видимые продукты на фото (не придумывай невидимые),
 объедини с перечисленными пользователем продуктами. Предложи ровно 3 реалистичных блюда.
 Отдавай исключительно JSON объект без markdown:
-{"ingredients":["картофель"], "recipes":[{"name":"...", "minutes":15,
-"missing":["..."], "steps":"Короткие безопасные шаги приготовления."}]}
+{"ingredients":["картофель"],"recipes":[{"name":"...","minutes":15,"ingredients":["..."],
+"missing":["..."],"steps":["Шаг 1","Шаг 2"]}]}
 Пиши по-русски. Отмечай неизвестные или сомнительные ингредиенты осторожно.
 Не утверждай, что можно определить свежесть или срок годности по фото.
 Для мяса и яиц укажи необходимость полной термообработки при необходимости.
