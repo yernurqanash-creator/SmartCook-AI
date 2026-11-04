@@ -46,15 +46,15 @@ class ComposeMainActivity : ComponentActivity() {
         var text by remember { mutableStateOf("") }; var output by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
         var showSettings by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
+        val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { b ->
+            if (b != null) { val out = ByteArrayOutputStream(); b.compress(Bitmap.CompressFormat.JPEG, 90, out); bitmap = b; payload = out.toByteArray() }
+        }
         val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) camera.launch(null) else output = "Разрешите доступ к камере в настройках телефона"
         }
         val gallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             uri ?: return@rememberLauncherForActivityResult
             scope.launch(Dispatchers.IO) { val b = contentResolver.openInputStream(uri)?.use { it.readBytes() }; val p = b?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) }; withContext(Dispatchers.Main) { payload = b; bitmap = p } }
-        }
-        val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { b ->
-            if (b != null) { val out = ByteArrayOutputStream(); b.compress(Bitmap.CompressFormat.JPEG, 90, out); bitmap = b; payload = out.toByteArray() }
         }
         MaterialTheme(colorScheme = lightColorScheme(primary = Green, background = Cream)) {
             Surface(Modifier.fillMaxSize(), color = Cream) {
