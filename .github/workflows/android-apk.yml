@@ -20,8 +20,8 @@ jobs:
 
       - name: Use preinstalled Android SDK
         run: |
-          echo "ANDROID_HOME=\${ANDROID_HOME}"
-          test -x "\${ANDROID_HOME}/platform-tools/adb"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -x "$ANDROID_HOME/platform-tools/adb"
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
 
