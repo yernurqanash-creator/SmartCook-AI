@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from typing import Annotated, Any
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -8,7 +9,8 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-load_dotenv()
+# Resolve the secret file from the backend module location, not the shell cwd.
+load_dotenv(Path(__file__).with_name(".env"))
 app = FastAPI(title="SmartCook AI API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
