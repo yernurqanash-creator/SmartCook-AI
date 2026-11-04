@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,12 +21,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Use preinstalled Android SDK
+      - name: Verify preinstalled Android SDK
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME"
           test -x "$ANDROID_HOME/platform-tools/adb"
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/aapt2"
+          "$ANDROID_HOME/platform-tools/adb" version
 
       - name: Set up Gradle
         uses: gradle/gradle-build-action@v3
