@@ -51,6 +51,8 @@ class ComposeMainActivity : ComponentActivity() {
         var analysis by remember { mutableStateOf<AnalysisUi?>(null) }
         var details by remember { mutableStateOf<RecipeUi?>(null) }
         var showSettings by remember { mutableStateOf(false) }
+        var showProfile by remember { mutableStateOf(false) }
+        var profileName by remember { mutableStateOf(getPreferences(0).getString("profile_name", "") ?: "") }
         val scope = rememberCoroutineScope()
         val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { b ->
             if (b != null) { val out = ByteArrayOutputStream(); b.compress(Bitmap.CompressFormat.JPEG, 90, out); bitmap = b; payload = out.toByteArray() }
@@ -65,8 +67,8 @@ class ComposeMainActivity : ComponentActivity() {
         MaterialTheme(colorScheme = lightColorScheme(primary = Green, background = Cream)) {
             Surface(Modifier.fillMaxSize(), color = Cream) {
                 if (details != null) RecipeDetails(details!!) { details = null } else LazyColumn(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    item { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Column { Text("SmartCook", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Green); Text("Готовим из того, что есть") }; Text("⚙", fontSize = 24.sp, modifier = Modifier.clickable { showSettings = true }) } }
-                    item { Card(colors = CardDefaults.cardColors(containerColor = Mint), shape = RoundedCornerShape(24.dp)) { Column(Modifier.padding(20.dp)) { Text("Умный помощник на кухне", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Green); Text("Сфотографируйте продукты — AI распознает их и подберёт рецепты.", color = Green) } } }
+                    item { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Column { Text("SmartCook", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Green); Text(if (profileName.isBlank()) "Готовим из того, что есть" else "Привет, " + profileName) }; Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) { Text("◉", fontSize = 24.sp, color = Green, modifier = Modifier.clickable { showProfile = true }); Text("⚙", fontSize = 24.sp, modifier = Modifier.clickable { showSettings = true }) } } }
+                    item { Card(colors = CardDefaults.cardColors(containerColor = Mint), shape = RoundedCornerShape(24.dp)) { Column(Modifier.padding(20.dp)) { Text("Что приготовим сегодня?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Green); Text("Снимите продукты или напишите их: «картоп, қызанақ, жұмыртқа». AI предложит настоящие блюда и понятные шаги.", color = Green) } } }
                     item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { Button({ if (ContextCompat.checkSelfPermission(this@ComposeMainActivity, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) camera.launch(null) else permission.launch(Manifest.permission.CAMERA) }, Modifier.weight(1f)) { Text("Камера") }; OutlinedButton({ gallery.launch("image/*") }, Modifier.weight(1f)) { Text("Галерея") } } }
                     bitmap?.let { item { Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().height(190.dp)) { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) } } }
                     item { OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("Ингредиенты") }, placeholder = { Text("Исправьте список после распознавания") }) }
@@ -89,6 +91,7 @@ class ComposeMainActivity : ComponentActivity() {
                     }
                 }
                 if (showSettings) UrlDialog(url, { url = it }, { getPreferences(0).edit().putString("url", url.trim().trimEnd('/')).apply(); showSettings = false; output = "Адрес сохранён: " + url }, { showSettings = false })
+                if (showProfile) ProfileDialog(profileName, { profileName = it }, { getPreferences(0).edit().putString("profile_name", profileName.trim()).apply(); showProfile = false }, { showProfile = false })
             }
         }
     }
@@ -123,6 +126,22 @@ class ComposeMainActivity : ComponentActivity() {
         val message = error.message.orEmpty()
         return if (message.contains("failed to connect", true) || message.contains("timeout", true)) "Ошибка подключения. Откройте ⚙ и укажите IPv4 компьютера: http://192.168.x.x:8000." else message.ifBlank { "Не удалось получить рецепты. Попробуйте ещё раз." }
     }
+}
+
+@Composable private fun ProfileDialog(current: String, set: (String) -> Unit, save: () -> Unit, close: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("Личный кабинет") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Настройте SmartCook под себя: рецепты будут отображаться в вашем личном пространстве.", color = Green)
+                OutlinedTextField(current, set, singleLine = true, label = { Text("Ваше имя") })
+                Card(colors = CardDefaults.cardColors(containerColor = Mint), shape = RoundedCornerShape(16.dp)) { Text("🍽️ Здесь появятся ваши любимые рецепты и история готовки.", modifier = Modifier.padding(14.dp), color = Green) }
+            }
+        },
+        confirmButton = { Button(save) { Text("Сохранить") } },
+        dismissButton = { TextButton(close) { Text("Закрыть") } }
+    )
 }
 
 @Composable private fun RecipeDetails(recipe: RecipeUi, back: () -> Unit) {
