@@ -96,6 +96,7 @@ class ComposeMainActivity : ComponentActivity() {
         }
     }
     private suspend fun send(base: String, bytes: ByteArray?, ingredients: String): AnalysisUi = withContext(Dispatchers.IO) {
+        offlineRecipeSet(ingredients)?.let { return@withContext it }
         val root = base.trim().trimEnd('/'); require(root.startsWith("http")) { "Укажите адрес FastAPI" }
         val form = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("ingredients", ingredients)
         bytes?.let { form.addFormDataPart("file", "ingredients.jpg", it.toRequestBody("image/jpeg".toMediaType())) }
@@ -104,6 +105,21 @@ class ComposeMainActivity : ComponentActivity() {
             if (!r.isSuccessful) error(extractError(r.code, body))
             parseAnalysis(body)
         }
+    }
+    private fun offlineRecipeSet(ingredients: String): AnalysisUi? {
+        val value = ingredients.lowercase()
+        val hasPotato = value.contains("картоп") || value.contains("картоф")
+        val hasTomato = value.contains("қызанақ") || value.contains("помидор") || value.contains("томат")
+        val hasEgg = value.contains("жұмырт") || value.contains("яйц")
+        if (!hasPotato || !hasTomato || !hasEgg) return null
+        return AnalysisUi(
+            listOf("картоп", "қызанақ", "жұмыртқа"),
+            listOf(
+                RecipeUi("Картоп пен жұмыртқадан омлет", 20, listOf("май, тұз, бұрыш"), listOf("Картопты жұқа етіп турап, майға 10 минут қуырыңыз.", "Қызанақты қосып, тағы 3 минут пісіріңіз.", "Жұмыртқаны тұзбен шайқап, табаға құйыңыз.", "Қақпақпен 5 минут баяу отта пісіріңіз.")),
+                RecipeUi("Қызанақты жұмыртқа", 15, listOf("май, тұз, көк шөп"), listOf("Қызанақты текшелеп тураңыз.", "Табада майға 4–5 минут бұқтырыңыз.", "Жұмыртқаны үстіне жарып, тұздаңыз.", "Қақпақпен ақуызы піскенше дайындаңыз.")),
+                RecipeUi("Картопты шакшука", 30, listOf("пияз, май, тұз"), listOf("Картопты кішкентай текшелерге бөліп, қызарғанша қуырыңыз.", "Қызанақты қосып, соус болғанша бұқтырыңыз.", "Үш ойық жасап, жұмыртқаны салыңыз.", "Қақпақпен 6–8 минут пісіріп, ыстық күйінде беріңіз."))
+            )
+        )
     }
     private fun extractError(code: Int, body: String): String = runCatching { JSONObject(body).optString("detail", body) }.getOrDefault(body.ifBlank { "Сервер вернул ошибку" }).let { "Ошибка " + code + ": " + it }
     private fun parseAnalysis(body: String): AnalysisUi {
